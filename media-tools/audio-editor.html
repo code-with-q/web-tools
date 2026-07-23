@@ -1,0 +1,1418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Offline Audio Editor</title>
+<!-- Load lamejs for native MP3 encoding -->
+<script src="lib/lame.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #171a21;
+    --panel-2: #1f232c;
+    --border: #2a2f3a;
+    --text: #e6e8ee;
+    --muted: #8a92a3;
+    --accent: #4f8cff;
+    --accent-2: #6aa9ff;
+    --danger: #ff6b6b;
+    --ok: #4ade80;
+    --warn: #fbbf24;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    min-height: 100vh;
+  }
+
+  .app {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 24px 20px 60px;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+
+  header h1 {
+    font-size: 22px;
+    margin: 0;
+    letter-spacing: 0.3px;
+  }
+
+  header .subtitle {
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px;
+    margin-bottom: 16px;
+  }
+
+  .card.collapsible .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+    margin-bottom: 12px;
+  }
+  .card-header h2 {
+    margin: 0;
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--muted);
+    font-weight: 600;
+  }
+  .toggle-icon {
+    font-size: 12px;
+    color: var(--muted);
+    transition: transform 0.3s ease;
+  }
+  .card.collapsed .toggle-icon {
+    transform: rotate(-90deg);
+  }
+  .card-content {
+    display: grid;
+    grid-template-rows: 1fr;
+    transition: grid-template-rows 0.3s ease, opacity 0.3s ease;
+    opacity: 1;
+  }
+  .card.collapsed .card-content {
+    grid-template-rows: 0fr;
+    opacity: 0;
+  }
+  .card-content > * {
+    overflow: hidden;
+  }
+
+  .dropzone {
+    border: 2px dashed #333a48;
+    border-radius: 12px;
+    padding: 28px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background: var(--panel-2);
+  }
+  .dropzone:hover, .dropzone.drag {
+    border-color: var(--accent);
+    background: #1a2233;
+  }
+  .dropzone p { margin: 6px 0; }
+  .dropzone .hint { color: var(--muted); font-size: 13px; }
+
+  .waveform-wrap {
+    position: relative;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  canvas#waveform {
+    display: block;
+    width: 100%;
+    height: 180px;
+    cursor: crosshair;
+  }
+
+  .time-bar {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 12px;
+    font-size: 12px;
+    color: var(--muted);
+    border-top: 1px solid var(--border);
+    background: rgba(0,0,0,0.15);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .controls-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 14px;
+  }
+
+  .control {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+  }
+
+  .control label {
+    display: block;
+    font-size: 12px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    margin-bottom: 8px;
+  }
+
+  .control .row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  input[type="number"], input[type="text"], select {
+    background: #0c0f14;
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 8px;
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+  }
+  input[type="number"] { width: 90px; }
+  select { min-width: 140px; cursor: pointer; }
+
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 4px;
+    background: #2a2f3a;
+    border-radius: 4px;
+    outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    border: 2px solid #0f1115;
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    border: 2px solid #0f1115;
+  }
+
+  .value-badge {
+    font-size: 12px;
+    color: var(--muted);
+    min-width: 48px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+  }
+
+  button {
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 9px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  button:hover:not(:disabled) {
+    border-color: var(--accent);
+    color: var(--accent-2);
+  }
+  button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  button.primary {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+  button.primary:hover:not(:disabled) {
+    background: var(--accent-2);
+    color: #fff;
+  }
+
+  button.effect {
+    background: #1a2233;
+    border-color: #2d3a55;
+  }
+  button.effect:hover:not(:disabled) {
+    background: #22304a;
+    border-color: var(--accent);
+    color: var(--accent-2);
+  }
+
+  .status {
+    font-size: 12px;
+    color: var(--muted);
+    margin-left: auto;
+  }
+  .status.ok { color: var(--ok); }
+  .status.err { color: var(--danger); }
+  .status.warn { color: var(--warn); }
+
+  .file-info {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: 10px;
+  }
+  .file-info span b { color: var(--text); font-weight: 500; }
+
+  .history-info {
+    font-size: 12px;
+    color: var(--muted);
+    margin-left: 8px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .effects-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px;
+  }
+
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 18px;
+    font-size: 13px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    opacity: 0;
+    transform: translateY(10px);
+    transition: all 0.25s ease;
+    pointer-events: none;
+    z-index: 100;
+    max-width: 320px;
+  }
+  .toast.show {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .toast.ok { border-color: var(--ok); color: var(--ok); }
+  .toast.err { border-color: var(--danger); color: var(--danger); }
+  .toast.warn { border-color: var(--warn); color: var(--warn); }
+
+  /* --- Loading Overlay --- */
+  .loading-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 17, 21, 0.85);
+    backdrop-filter: blur(4px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+  }
+  .loading-overlay.active {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-bottom: 16px;
+  }
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+  .loading-text {
+    font-size: 14px;
+    color: var(--text);
+    font-weight: 500;
+  }
+
+  footer {
+    text-align: center;
+    color: var(--muted);
+    font-size: 12px;
+    margin-top: 24px;
+  }
+
+  @media (max-width: 520px) {
+    canvas#waveform { height: 140px; }
+    header h1 { font-size: 18px; }
+    .card { padding: 14px; }
+    .effects-grid { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
+  }
+</style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div>
+        <h1>🎛️ Offline Audio Editor</h1>
+        <div class="subtitle">Non-destructive editing · Apply effects in-place · Undo/Redo · All in your browser</div>
+      </div>
+    </header>
+
+    <!-- Upload -->
+    <div class="card">
+      <div id="dropzone" class="dropzone">
+        <p><b>Drop an audio file here</b> or click to browse</p>
+        <p class="hint">Supported: MP3, WAV, OGG, FLAC, M4A (browser-decodable formats)</p>
+        <input type="file" id="fileInput" accept="audio/*" hidden />
+      </div>
+      <div id="fileInfo" class="file-info" style="display:none;"></div>
+    </div>
+
+    <!-- Waveform -->
+    <div class="card">
+      <div class="waveform-wrap">
+        <canvas id="waveform"></canvas>
+        <div class="time-bar">
+          <span id="timeStart">Start: 0.00s</span>
+          <span id="timeDuration">Duration: 0.00s</span>
+          <span id="timeEnd">End: 0.00s</span>
+        </div>
+      </div>
+      <p class="hint" style="color:var(--muted); font-size:12px; margin-top:8px;">
+        Click &amp; drag on the waveform to select a region.
+      </p>
+    </div>
+
+    <!-- Controls -->
+    <div class="card collapsible" id="card-adjustments">
+      <div class="card-header">
+        <h2>Adjustments</h2>
+        <span class="toggle-icon">▼</span>
+      </div>
+      <div class="card-content">
+        <div class="controls-grid">
+          <div class="control">
+            <label>Trim (seconds)</label>
+            <div class="row">
+              <input type="number" id="startInput" min="0" step="0.01" value="0" />
+              <span style="color:var(--muted);">→</span>
+              <input type="number" id="endInput" min="0" step="0.01" value="0" />
+            </div>
+          </div>
+
+          <div class="control">
+            <label>Fade In</label>
+            <div class="row">
+              <input type="range" id="fadeIn" min="0" max="10" step="0.05" value="0" />
+              <span class="value-badge" id="fadeInVal">0.00s</span>
+            </div>
+          </div>
+
+          <div class="control">
+            <label>Fade Out</label>
+            <div class="row">
+              <input type="range" id="fadeOut" min="0" max="10" step="0.05" value="0" />
+              <span class="value-badge" id="fadeOutVal">0.00s</span>
+            </div>
+          </div>
+
+          <div class="control">
+            <label>Volume</label>
+            <div class="row">
+              <input type="range" id="volume" min="0" max="2" step="0.01" value="1" />
+              <span class="value-badge" id="volumeVal">100%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Effects -->
+    <div class="card collapsible" id="card-effects">
+      <div class="card-header">
+        <h2>Apply Effects (modifies audio in-place)</h2>
+        <span class="toggle-icon">▼</span>
+      </div>
+      <div class="card-content">
+        <div class="effects-grid">
+          <button class="effect" id="applyTrim" disabled>✂ Apply Trim</button>
+          <button class="effect" id="applyFadeIn" disabled>↗ Apply Fade In</button>
+          <button class="effect" id="applyFadeOut" disabled>↘ Apply Fade Out</button>
+          <button class="effect" id="applyVolume" disabled>🔊 Apply Volume</button>
+          <button class="effect" id="applyReverse" disabled>⟲ Reverse</button>
+          <button class="effect" id="applyNormalize" disabled>📈 Normalize</button>
+          <button class="effect" id="applySilence" disabled>🔇 Silence Selection</button>
+          <button class="effect" id="applyFadeInSel" disabled>↗ Fade In Selection</button>
+          <button class="effect" id="applyFadeOutSel" disabled>↘ Fade Out Selection</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="card collapsible" id="card-actions">
+      <div class="card-header">
+        <h2>Playback & History</h2>
+        <span class="toggle-icon">▼</span>
+      </div>
+      <div class="card-content">
+        <div class="actions">
+          <button id="playBtn" disabled>▶ Play</button>
+          <button id="stopBtn" disabled>■ Stop</button>
+          <label style="display:flex; align-items:center; gap:6px; font-size:13px; color:var(--text); cursor:pointer; user-select:none;">
+            <input type="checkbox" id="playSelectionOnly" style="accent-color: var(--accent); width: 16px; height: 16px;" />
+            Play selection only
+          </label>
+          <button id="undoBtn" disabled>↶ Undo</button>
+          <button id="redoBtn" disabled>↷ Redo</button>
+          <button id="resetSelectionBtn" disabled>↺ Reset Selection</button>
+          <button id="resetBtn" disabled>⟲ Reset to Original</button>
+          <span class="history-info" id="historyInfo">No history</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Export -->
+    <div class="card collapsible" id="card-export">
+      <div class="card-header">
+        <h2>Export</h2>
+        <span class="toggle-icon">▼</span>
+      </div>
+      <div class="card-content">
+        <div class="actions">
+          <label style="font-size:13px; color:var(--muted);">Format:</label>
+          <select id="formatSelect">
+            <option value="wav">WAV (.wav)</option>
+            <option value="mp3">MP3 (.mp3)</option>
+            <option value="webm">WebM (.webm)</option>
+            <option value="ogg">OGG (.ogg)</option>
+          </select>
+          <button id="exportBtn" class="primary" disabled>⬇ Export</button>
+          <span id="status" class="status"></span>
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      Built with the Web Audio API · 100% offline · Your files never leave your device
+    </footer>
+  </div>
+
+  <!-- Loading Overlay -->
+  <div id="loadingOverlay" class="loading-overlay">
+    <div class="spinner"></div>
+    <div class="loading-text" id="loadingText">Processing...</div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+<script>
+(() => {
+  // ---------- State ----------
+  const state = {
+    ctx: null,
+    originalBuffer: null,
+    currentBuffer: null,
+    originalFileName: '',
+    originalFormat: '',
+    history: [],
+    historyIndex: -1,
+    selection: { start: 0, end: 0 },
+    fadeIn: 0,
+    fadeOut: 0,
+    volume: 1,
+    isPlaying: false,
+    sourceNode: null,
+    gainNode: null
+  };
+
+  const MAX_HISTORY = 20;
+
+  // ---------- DOM ----------
+  const $ = id => document.getElementById(id);
+  const dropzone = $('dropzone');
+  const fileInput = $('fileInput');
+  const fileInfo = $('fileInfo');
+  const canvas = $('waveform');
+  const ctx2d = canvas.getContext('2d');
+  const startInput = $('startInput');
+  const endInput = $('endInput');
+  const fadeIn = $('fadeIn');
+  const fadeOut = $('fadeOut');
+  const volume = $('volume');
+  const fadeInVal = $('fadeInVal');
+  const fadeOutVal = $('fadeOutVal');
+  const volumeVal = $('volumeVal');
+  const timeStart = $('timeStart');
+  const timeEnd = $('timeEnd');
+  const timeDuration = $('timeDuration');
+  const playBtn = $('playBtn');
+  const stopBtn = $('stopBtn');
+  const playSelectionOnly = $('playSelectionOnly');
+  const undoBtn = $('undoBtn');
+  const redoBtn = $('redoBtn');
+  const resetSelectionBtn = $('resetSelectionBtn');
+  const resetBtn = $('resetBtn');
+  const historyInfo = $('historyInfo');
+  const formatSelect = $('formatSelect');
+  const exportBtn = $('exportBtn');
+  const statusEl = $('status');
+  const toastEl = $('toast');
+  const loadingOverlay = $('loadingOverlay');
+  const loadingText = $('loadingText');
+
+  const applyTrim = $('applyTrim');
+  const applyFadeIn = $('applyFadeIn');
+  const applyFadeOut = $('applyFadeOut');
+  const applyVolume = $('applyVolume');
+  const applyReverse = $('applyReverse');
+  const applyNormalize = $('applyNormalize');
+  const applySilence = $('applySilence');
+  const applyFadeInSel = $('applyFadeInSel');
+  const applyFadeOutSel = $('applyFadeOutSel');
+
+  // ---------- Loading Overlay ----------
+  function showLoading(msg = 'Processing...') {
+    loadingText.textContent = msg;
+    loadingOverlay.classList.add('active');
+  }
+
+  function hideLoading() {
+    loadingOverlay.classList.remove('active');
+  }
+
+  // ---------- Collapsible Cards ----------
+  document.querySelectorAll('.card.collapsible .card-header').forEach(header => {
+    header.addEventListener('click', () => {
+      header.parentElement.classList.toggle('collapsed');
+    });
+  });
+
+  // ---------- Helpers ----------
+  function setStatus(msg, type = '') {
+    statusEl.textContent = msg;
+    statusEl.className = 'status ' + type;
+  }
+
+  let toastTimer = null;
+  function showToast(msg, type = '') {
+    toastEl.textContent = msg;
+    toastEl.className = 'toast show ' + type;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
+      toastEl.className = 'toast ' + type;
+    }, 2500);
+  }
+
+  function fmt(s) {
+    if (!isFinite(s)) return '0.00s';
+    return s.toFixed(2) + 's';
+  }
+
+  function ensureContext() {
+    if (!state.ctx) {
+      state.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (state.ctx.state === 'suspended') state.ctx.resume();
+  }
+
+  function cloneBuffer(buffer) {
+    const out = state.ctx.createBuffer(
+      buffer.numberOfChannels,
+      buffer.length,
+      buffer.sampleRate
+    );
+    for (let c = 0; c < buffer.numberOfChannels; c++) {
+      out.copyToChannel(buffer.getChannelData(c).slice(), c);
+    }
+    return out;
+  }
+
+  // ---------- MP3 Encoding ----------
+  function convertFloat32ToInt16(float32) {
+    const int16 = new Int16Array(float32.length);
+    for (let i = 0; i < float32.length; i++) {
+      const s = Math.max(-1, Math.min(1, float32[i]));
+      int16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+    }
+    return int16;
+  }
+
+  function audioBufferToMp3(buffer, kbps = 192) {
+    if (typeof lamejs === 'undefined') {
+      throw new Error('lamejs library not found. Please ensure lib/lame.min.js is loaded.');
+    }
+    const channels = buffer.numberOfChannels;
+    const sampleRate = buffer.sampleRate;
+    const samples = buffer.length;
+    const mp3encoder = new lamejs.Mp3Encoder(channels, sampleRate, kbps);
+    const mp3Data = [];
+    const blockSize = 1152;
+
+    const left = convertFloat32ToInt16(buffer.getChannelData(0));
+    const right = channels > 1 ? convertFloat32ToInt16(buffer.getChannelData(1)) : left;
+
+    for (let i = 0; i < samples; i += blockSize) {
+      const leftChunk = left.subarray(i, i + blockSize);
+      const rightChunk = right.subarray(i, i + blockSize);
+      const mp3buf = channels === 1
+        ? mp3encoder.encodeBuffer(leftChunk)
+        : mp3encoder.encodeBuffer(leftChunk, rightChunk);
+      if (mp3buf.length > 0) mp3Data.push(mp3buf);
+    }
+    const end = mp3encoder.flush();
+    if (end.length > 0) mp3Data.push(end);
+
+    return new Blob(mp3Data, { type: 'audio/mpeg' });
+  }
+
+  // ---------- History ----------
+  function pushHistory(buffer) {
+    state.history = state.history.slice(0, state.historyIndex + 1);
+    state.history.push(buffer);
+    if (state.history.length > MAX_HISTORY) {
+      state.history.shift();
+    } else {
+      state.historyIndex++;
+    }
+    state.currentBuffer = buffer;
+    updateHistoryUI();
+    drawWaveform();
+  }
+
+  function updateHistoryUI() {
+    const total = state.history.length;
+    const idx = state.historyIndex;
+    if (total === 0) {
+      historyInfo.textContent = 'No history';
+    } else {
+      historyInfo.textContent = `State ${idx + 1} / ${total}`;
+    }
+    undoBtn.disabled = !state.originalBuffer || idx <= 0;
+    redoBtn.disabled = !state.originalBuffer || idx >= total - 1;
+  }
+
+  function undo() {
+    if (state.historyIndex <= 0) return;
+    state.historyIndex--;
+    state.currentBuffer = state.history[state.historyIndex];
+    clampSelection();
+    updateHistoryUI();
+    drawWaveform();
+    showToast('Undone', 'ok');
+  }
+
+  function redo() {
+    if (state.historyIndex >= state.history.length - 1) return;
+    state.historyIndex++;
+    state.currentBuffer = state.history[state.historyIndex];
+    clampSelection();
+    updateHistoryUI();
+    drawWaveform();
+    showToast('Redone', 'ok');
+  }
+
+  function resetToOriginal() {
+    if (!state.originalBuffer) return;
+    state.currentBuffer = cloneBuffer(state.originalBuffer);
+    pushHistory(state.currentBuffer);
+    state.selection.start = 0;
+    state.selection.end = state.currentBuffer.duration;
+    resetControls();
+    updateSelectionUI();
+    drawWaveform();
+    showToast('Reset to original', 'ok');
+  }
+
+  function clampSelection() {
+    const dur = state.currentBuffer.duration;
+    state.selection.start = Math.max(0, Math.min(state.selection.start, dur));
+    state.selection.end = Math.max(state.selection.start, Math.min(state.selection.end, dur));
+    startInput.value = state.selection.start.toFixed(2);
+    endInput.value = state.selection.end.toFixed(2);
+  }
+
+  function resetControls() {
+    state.fadeIn = 0; fadeIn.value = 0; fadeInVal.textContent = '0.00s';
+    state.fadeOut = 0; fadeOut.value = 0; fadeOutVal.textContent = '0.00s';
+    state.volume = 1; volume.value = 1; volumeVal.textContent = '100%';
+  }
+
+  // ---------- File loading ----------
+  dropzone.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', e => {
+    if (e.target.files[0]) loadFile(e.target.files[0]);
+  });
+  ['dragenter','dragover'].forEach(ev =>
+    dropzone.addEventListener(ev, e => { e.preventDefault(); dropzone.classList.add('drag'); })
+  );
+  ['dragleave','drop'].forEach(ev =>
+    dropzone.addEventListener(ev, e => { e.preventDefault(); dropzone.classList.remove('drag'); })
+  );
+  dropzone.addEventListener('drop', e => {
+    const f = e.dataTransfer.files[0];
+    if (f) loadFile(f);
+  });
+
+  async function loadFile(file) {
+    stopPlayback();
+    showLoading('Decoding audio…');
+    
+    // Yield to the browser to ensure the overlay paints before heavy async work
+    await new Promise(resolve => setTimeout(resolve, 50));
+    
+    try {
+      ensureContext();
+      const arrayBuffer = await file.arrayBuffer();
+      const audioBuffer = await state.ctx.decodeAudioData(arrayBuffer.slice(0));
+
+      state.originalBuffer = audioBuffer;
+      state.currentBuffer = cloneBuffer(audioBuffer);
+      state.originalFileName = file.name;
+      state.originalFormat = getExtension(file.name);
+
+      setDefaultFormat(state.originalFormat);
+
+      state.history = [state.currentBuffer];
+      state.historyIndex = 0;
+
+      state.selection.start = 0;
+      state.selection.end = audioBuffer.duration;
+
+      fileInfo.style.display = 'flex';
+      fileInfo.innerHTML = `
+        <span><b>File:</b> ${file.name}</span>
+        <span><b>Duration:</b> ${fmt(audioBuffer.duration)}</span>
+        <span><b>Sample rate:</b> ${audioBuffer.sampleRate} Hz</span>
+        <span><b>Channels:</b> ${audioBuffer.numberOfChannels}</span>
+      `;
+
+      startInput.value = 0;
+      endInput.value = audioBuffer.duration.toFixed(2);
+      resetControls();
+      updateSelectionUI();
+      updateHistoryUI();
+      drawWaveform();
+      enableControls(true);
+      setStatus('Ready.', 'ok');
+      showToast('Audio loaded', 'ok');
+    } catch (err) {
+      console.error(err);
+      setStatus('Failed to decode audio. Try a different file.', 'err');
+      showToast('Decode failed', 'err');
+    } finally {
+      hideLoading();
+    }
+  }
+
+  function getExtension(filename) {
+    const parts = filename.split('.');
+    return parts.length > 1 ? parts.pop().toLowerCase() : '';
+  }
+
+  function setDefaultFormat(ext) {
+    const map = {
+      'wav': 'wav', 'wave': 'wav', 'mp3': 'mp3', 'ogg': 'ogg',
+      'oga': 'ogg', 'webm': 'webm', 'm4a': 'webm', 'flac': 'wav', 'aac': 'webm'
+    };
+    const fmt = map[ext] || 'wav';
+    formatSelect.value = fmt;
+  }
+
+  function enableControls(on) {
+    [playBtn, stopBtn, resetBtn, resetSelectionBtn, exportBtn,
+     applyTrim, applyFadeIn, applyFadeOut, applyVolume,
+     applyReverse, applyNormalize, applySilence,
+     applyFadeInSel, applyFadeOutSel].forEach(b => b.disabled = !on);
+    updateHistoryUI();
+  }
+
+  // ---------- Waveform drawing ----------
+  function resizeCanvas() {
+    const ratio = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * ratio;
+    canvas.height = rect.height * ratio;
+    ctx2d.setTransform(ratio, 0, 0, ratio, 0, 0);
+  }
+
+  function drawWaveform() {
+    if (!state.currentBuffer) return;
+    resizeCanvas();
+    const rect = canvas.getBoundingClientRect();
+    const w = rect.width, h = rect.height;
+    const buffer = state.currentBuffer;
+    const samples = buffer.length;
+    const data = mergeChannels(buffer);
+
+    ctx2d.clearRect(0, 0, w, h);
+    ctx2d.fillStyle = '#151924';
+    ctx2d.fillRect(0, 0, w, h);
+
+    const selStartPx = (state.selection.start / buffer.duration) * w;
+    const selEndPx = (state.selection.end / buffer.duration) * w;
+    ctx2d.fillStyle = 'rgba(0,0,0,0.45)';
+    ctx2d.fillRect(0, 0, selStartPx, h);
+    ctx2d.fillRect(selEndPx, 0, w - selEndPx, h);
+
+    const step = Math.max(1, Math.floor(samples / w));
+    const mid = h / 2;
+    ctx2d.fillStyle = '#4f8cff';
+    for (let x = 0; x < w; x++) {
+      const idx = Math.floor((x / w) * samples);
+      let min = 1, max = -1;
+      for (let j = 0; j < step; j++) {
+        const v = data[idx + j] || 0;
+        if (v < min) min = v;
+        if (v > max) max = v;
+      }
+      const y1 = (1 + min) * mid;
+      const y2 = (1 + max) * mid;
+      ctx2d.fillRect(x, y1, 1, Math.max(1, y2 - y1));
+    }
+
+    ctx2d.strokeStyle = '#6aa9ff';
+    ctx2d.lineWidth = 2;
+    ctx2d.beginPath();
+    ctx2d.moveTo(selStartPx, 0); ctx2d.lineTo(selStartPx, h);
+    ctx2d.moveTo(selEndPx, 0); ctx2d.lineTo(selEndPx, h);
+    ctx2d.stroke();
+
+    ctx2d.strokeStyle = 'rgba(255,255,255,0.08)';
+    ctx2d.lineWidth = 1;
+    ctx2d.beginPath();
+    ctx2d.moveTo(0, mid); ctx2d.lineTo(w, mid);
+    ctx2d.stroke();
+  }
+
+  function mergeChannels(buffer) {
+    const ch0 = buffer.getChannelData(0);
+    if (buffer.numberOfChannels === 1) return ch0;
+    const ch1 = buffer.getChannelData(1);
+    const out = new Float32Array(ch0.length);
+    for (let i = 0; i < ch0.length; i++) out[i] = (ch0[i] + ch1[i]) * 0.5;
+    return out;
+  }
+
+  window.addEventListener('resize', () => { if (state.currentBuffer) drawWaveform(); });
+
+  // ---------- Selection via mouse ----------
+  let dragging = false;
+  let dragStartX = 0;
+
+  function xToTime(x) {
+    const rect = canvas.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (x - rect.left) / rect.width));
+    return ratio * state.currentBuffer.duration;
+  }
+
+  canvas.addEventListener('mousedown', e => {
+    if (!state.currentBuffer) return;
+    dragging = true;
+    dragStartX = xToTime(e.clientX);
+    state.selection.start = dragStartX;
+    state.selection.end = dragStartX;
+    updateSelectionUI();
+    drawWaveform();
+  });
+  canvas.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    const t = xToTime(e.clientX);
+    state.selection.start = Math.min(dragStartX, t);
+    state.selection.end = Math.max(dragStartX, t);
+    updateSelectionUI();
+    drawWaveform();
+  });
+  window.addEventListener('mouseup', () => { dragging = false; });
+
+  canvas.addEventListener('touchstart', e => {
+    if (!state.currentBuffer) return;
+    const t = e.touches[0];
+    dragging = true;
+    dragStartX = xToTime(t.clientX);
+    state.selection.start = state.selection.end = dragStartX;
+    updateSelectionUI(); drawWaveform();
+  }, { passive: true });
+  canvas.addEventListener('touchmove', e => {
+    if (!dragging) return;
+    const t = e.touches[0];
+    const time = xToTime(t.clientX);
+    state.selection.start = Math.min(dragStartX, time);
+    state.selection.end = Math.max(dragStartX, time);
+    updateSelectionUI(); drawWaveform();
+  }, { passive: true });
+  canvas.addEventListener('touchend', () => { dragging = false; });
+
+  function updateSelectionUI() {
+    startInput.value = state.selection.start.toFixed(2);
+    endInput.value = state.selection.end.toFixed(2);
+    timeStart.textContent = 'Start: ' + fmt(state.selection.start);
+    timeEnd.textContent = 'End: ' + fmt(state.selection.end);
+    const dur = Math.max(0, state.selection.end - state.selection.start);
+    timeDuration.textContent = 'Selection: ' + fmt(dur);
+
+    const maxFade = dur;
+    if (state.fadeIn > maxFade) { state.fadeIn = maxFade; fadeIn.value = state.fadeIn; }
+    if (state.fadeOut > maxFade) { state.fadeOut = maxFade; fadeOut.value = state.fadeOut; }
+    fadeInVal.textContent = fmt(state.fadeIn);
+    fadeOutVal.textContent = fmt(state.fadeOut);
+  }
+
+  // ---------- Inputs ----------
+  startInput.addEventListener('input', () => {
+    let v = parseFloat(startInput.value) || 0;
+    v = Math.max(0, Math.min(v, state.currentBuffer.duration));
+    state.selection.start = v;
+    if (state.selection.start > state.selection.end) state.selection.end = state.selection.start;
+    updateSelectionUI(); drawWaveform();
+  });
+  endInput.addEventListener('input', () => {
+    let v = parseFloat(endInput.value) || 0;
+    v = Math.max(0, Math.min(v, state.currentBuffer.duration));
+    state.selection.end = v;
+    if (state.selection.end < state.selection.start) state.selection.start = state.selection.end;
+    updateSelectionUI(); drawWaveform();
+  });
+
+  fadeIn.addEventListener('input', () => {
+    state.fadeIn = parseFloat(fadeIn.value);
+    fadeInVal.textContent = fmt(state.fadeIn);
+  });
+  fadeOut.addEventListener('input', () => {
+    state.fadeOut = parseFloat(fadeOut.value);
+    fadeOutVal.textContent = fmt(state.fadeOut);
+  });
+  volume.addEventListener('input', () => {
+    state.volume = parseFloat(volume.value);
+    volumeVal.textContent = Math.round(state.volume * 100) + '%';
+    if (state.gainNode) state.gainNode.gain.value = state.volume;
+  });
+
+  // ---------- Apply Effects ----------
+  function applyEffect(name, fn) {
+    if (!state.currentBuffer) return;
+    stopPlayback();
+    showLoading(`Applying ${name}…`);
+    
+    // Yield to allow the UI to render the loading overlay before blocking the main thread
+    setTimeout(() => {
+      try {
+        const newBuffer = fn(state.currentBuffer);
+        pushHistory(newBuffer);
+        showToast(`${name} applied`, 'ok');
+      } catch (e) {
+        console.error(e);
+        showToast(`${name} failed`, 'err');
+      } finally {
+        hideLoading();
+      }
+    }, 50);
+  }
+
+  applyTrim.addEventListener('click', () => {
+    applyEffect('Trim', (buf) => {
+      const sr = buf.sampleRate;
+      const ch = buf.numberOfChannels;
+      const startSample = Math.floor(state.selection.start * sr);
+      const endSample = Math.floor(state.selection.end * sr);
+      const length = Math.max(1, endSample - startSample);
+      const out = state.ctx.createBuffer(ch, length, sr);
+      for (let c = 0; c < ch; c++) {
+        const src = buf.getChannelData(c);
+        const dst = out.getChannelData(c);
+        for (let i = 0; i < length; i++) {
+          dst[i] = src[startSample + i];
+        }
+      }
+      state.selection.start = 0;
+      state.selection.end = out.duration;
+      updateSelectionUI();
+      return out;
+    });
+  });
+
+  applyFadeIn.addEventListener('click', () => {
+    applyEffect('Fade In', (buf) => {
+      const out = cloneBuffer(buf);
+      const sr = out.sampleRate;
+      const fadeInSamples = Math.floor(state.fadeIn * sr);
+      if (fadeInSamples <= 0) return out;
+      for (let c = 0; c < out.numberOfChannels; c++) {
+        const data = out.getChannelData(c);
+        for (let i = 0; i < fadeInSamples && i < data.length; i++) {
+          data[i] *= i / fadeInSamples;
+        }
+      }
+      state.fadeIn = 0; fadeIn.value = 0; fadeInVal.textContent = '0.00s';
+      return out;
+    });
+  });
+
+  applyFadeOut.addEventListener('click', () => {
+    applyEffect('Fade Out', (buf) => {
+      const out = cloneBuffer(buf);
+      const sr = out.sampleRate;
+      const fadeOutSamples = Math.floor(state.fadeOut * sr);
+      if (fadeOutSamples <= 0) return out;
+      for (let c = 0; c < out.numberOfChannels; c++) {
+        const data = out.getChannelData(c);
+        for (let i = 0; i < fadeOutSamples && i < data.length; i++) {
+          const k = data.length - 1 - i;
+          data[k] *= i / fadeOutSamples;
+        }
+      }
+      state.fadeOut = 0; fadeOut.value = 0; fadeOutVal.textContent = '0.00s';
+      return out;
+    });
+  });
+
+  applyVolume.addEventListener('click', () => {
+    applyEffect('Volume', (buf) => {
+      const out = cloneBuffer(buf);
+      for (let c = 0; c < out.numberOfChannels; c++) {
+        const data = out.getChannelData(c);
+        for (let i = 0; i < data.length; i++) {
+          data[i] *= state.volume;
+        }
+      }
+      state.volume = 1; volume.value = 1; volumeVal.textContent = '100%';
+      return out;
+    });
+  });
+
+  applyReverse.addEventListener('click', () => {
+    applyEffect('Reverse', (buf) => {
+      const out = cloneBuffer(buf);
+      for (let c = 0; c < out.numberOfChannels; c++) {
+        const data = out.getChannelData(c);
+        data.reverse();
+      }
+      return out;
+    });
+  });
+
+  applyNormalize.addEventListener('click', () => {
+    applyEffect('Normalize', (buf) => {
+      const out = cloneBuffer(buf);
+      let max = 0;
+      for (let c = 0; c < out.numberOfChannels; c++) {
+        const data = out.getChannelData(c);
+        for (let i = 0; i < data.length; i++) {
+          const abs = Math.abs(data[i]);
+          if (abs > max) max = abs;
+        }
+      }
+      if (max > 0 && max !== 1) {
+        const gain = 1 / max;
+        for (let c = 0; c < out.numberOfChannels; c++) {
+          const data = out.getChannelData(c);
+          for (let i = 0; i < data.length; i++) {
+            data[i] *= gain;
+          }
+        }
+      }
+      return out;
+    });
+  });
+
+  applySilence.addEventListener('click', () => {
+    applyEffect('Silence Selection', (buf) => {
+      const out = cloneBuffer(buf);
+      const sr = out.sampleRate;
+      const startSample = Math.floor(state.selection.start * sr);
+      const endSample = Math.floor(state.selection.end * sr);
+      for (let c = 0; c < out.numberOfChannels; c++) {
+        const data = out.getChannelData(c);
+        for (let i = startSample; i < endSample && i < data.length; i++) {
+          data[i] = 0;
+        }
+      }
+      return out;
+    });
+  });
+
+  applyFadeInSel.addEventListener('click', () => {
+    applyEffect('Fade In Selection', (buf) => {
+      const out = cloneBuffer(buf);
+      const sr = out.sampleRate;
+      const startSample = Math.floor(state.selection.start * sr);
+      const endSample = Math.floor(state.selection.end * sr);
+      const length = endSample - startSample;
+      if (length <= 0) return out;
+      for (let c = 0; c < out.numberOfChannels; c++) {
+        const data = out.getChannelData(c);
+        for (let i = 0; i < length; i++) {
+          data[startSample + i] *= i / length;
+        }
+      }
+      return out;
+    });
+  });
+
+  applyFadeOutSel.addEventListener('click', () => {
+    applyEffect('Fade Out Selection', (buf) => {
+      const out = cloneBuffer(buf);
+      const sr = out.sampleRate;
+      const startSample = Math.floor(state.selection.start * sr);
+      const endSample = Math.floor(state.selection.end * sr);
+      const length = endSample - startSample;
+      if (length <= 0) return out;
+      for (let c = 0; c < out.numberOfChannels; c++) {
+        const data = out.getChannelData(c);
+        for (let i = 0; i < length; i++) {
+          data[startSample + i] *= (length - 1 - i) / length;
+        }
+      }
+      return out;
+    });
+  });
+
+  // ---------- Playback ----------
+  playBtn.addEventListener('click', () => {
+    if (!state.currentBuffer) return;
+    stopPlayback();
+    ensureContext();
+
+    const src = state.ctx.createBufferSource();
+    src.buffer = state.currentBuffer;
+    const gain = state.ctx.createGain();
+    gain.gain.value = state.volume;
+    src.connect(gain).connect(state.ctx.destination);
+
+    const playOnlySelection = playSelectionOnly.checked;
+    if (playOnlySelection) {
+      const offset = state.selection.start;
+      const duration = Math.max(0.01, state.selection.end - state.selection.start);
+      src.start(0, offset, duration);
+    } else {
+      src.start(0);
+    }
+
+    state.sourceNode = src;
+    state.gainNode = gain;
+    state.isPlaying = true;
+    playBtn.textContent = '⏸ Playing…';
+
+    src.onended = () => {
+      state.isPlaying = false;
+      playBtn.textContent = '▶ Play';
+    };
+  });
+
+  stopBtn.addEventListener('click', stopPlayback);
+
+  function stopPlayback() {
+    if (state.sourceNode) {
+      try { state.sourceNode.stop(); } catch(e) {}
+      state.sourceNode.disconnect();
+      state.sourceNode = null;
+    }
+    state.isPlaying = false;
+    playBtn.textContent = '▶ Play';
+  }
+
+  // ---------- History buttons ----------
+  undoBtn.addEventListener('click', undo);
+  redoBtn.addEventListener('click', redo);
+  resetBtn.addEventListener('click', resetToOriginal);
+  
+  resetSelectionBtn.addEventListener('click', () => {
+    if (!state.currentBuffer) return;
+    state.selection.start = 0;
+    state.selection.end = state.currentBuffer.duration;
+    updateSelectionUI();
+    drawWaveform();
+    showToast('Selection reset to full duration', 'ok');
+  });
+
+  // Keyboard shortcuts
+  window.addEventListener('keydown', e => {
+    if (!state.currentBuffer) return;
+    if (e.ctrlKey || e.metaKey) {
+      if (e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
+      if ((e.key === 'z' && e.shiftKey) || e.key === 'y') { e.preventDefault(); redo(); }
+    }
+  });
+
+  // ---------- Export ----------
+  exportBtn.addEventListener('click', async () => {
+    if (!state.currentBuffer) return;
+    const format = formatSelect.value;
+    showLoading(`Encoding ${format.toUpperCase()}…`);
+    
+    // CRITICAL FIX: Yield to the browser to ensure the overlay paints 
+    // before the synchronous encoding blocks the main thread.
+    await new Promise(resolve => setTimeout(resolve, 50));
+    
+    try {
+      let blob, ext, mime;
+      if (format === 'wav') {
+        blob = audioBufferToWav(state.currentBuffer);
+        ext = 'wav';
+        mime = 'audio/wav';
+      } else if (format === 'mp3') {
+        blob = audioBufferToMp3(state.currentBuffer, 192);
+        ext = 'mp3';
+        mime = 'audio/mpeg';
+      } else {
+        const result = await bufferToMediaRecorder(state.currentBuffer, format);
+        blob = result.blob;
+        ext = result.ext;
+        mime = result.mime;
+      }
+      const filename = getBaseName(state.originalFileName) + '-edited.' + ext;
+      downloadBlob(blob, filename);
+      setStatus(`${format.toUpperCase()} exported ✓`, 'ok');
+      showToast('Export complete', 'ok');
+    } catch (e) {
+      console.error(e);
+      setStatus(`${format.toUpperCase()} export failed: ${e.message}`, 'err');
+      showToast('Export failed', 'err');
+    } finally {
+      hideLoading();
+    }
+  });
+
+  function getBaseName(filename) {
+    const lastDot = filename.lastIndexOf('.');
+    return lastDot > 0 ? filename.substring(0, lastDot) : filename;
+  }
+
+  function audioBufferToWav(buffer) {
+    const numCh = buffer.numberOfChannels;
+    const sr = buffer.sampleRate;
+    const len = buffer.length;
+    const bytesPerSample = 2;
+    const blockAlign = numCh * bytesPerSample;
+    const byteRate = sr * blockAlign;
+    const dataSize = len * blockAlign;
+    const bufferSize = 44 + dataSize;
+    const ab = new ArrayBuffer(bufferSize);
+    const view = new DataView(ab);
+
+    writeStr(view, 0, 'RIFF');
+    view.setUint32(4, 36 + dataSize, true);
+    writeStr(view, 8, 'WAVE');
+    writeStr(view, 12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, numCh, true);
+    view.setUint32(24, sr, true);
+    view.setUint32(28, byteRate, true);
+    view.setUint16(32, blockAlign, true);
+    view.setUint16(34, 16, true);
+    writeStr(view, 36, 'data');
+    view.setUint32(40, dataSize, true);
+
+    const channels = [];
+    for (let c = 0; c < numCh; c++) channels.push(buffer.getChannelData(c));
+    let offset = 44;
+    for (let i = 0; i < len; i++) {
+      for (let c = 0; c < numCh; c++) {
+        let s = Math.max(-1, Math.min(1, channels[c][i]));
+        s = s < 0 ? s * 0x8000 : s * 0x7FFF;
+        view.setInt16(offset, s, true);
+        offset += 2;
+      }
+    }
+    return new Blob([ab], { type: 'audio/wav' });
+  }
+
+  function writeStr(view, offset, str) {
+    for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+  }
+
+  async function bufferToMediaRecorder(buffer, format) {
+    return new Promise((resolve, reject) => {
+      stopPlayback();
+      ensureContext();
+
+      const mediaDst = state.ctx.createMediaStreamDestination();
+      const src = state.ctx.createBufferSource();
+      src.buffer = buffer;
+      src.connect(mediaDst);
+      src.start();
+
+      const mimeMap = {
+        'webm': ['audio/webm;codecs=opus', 'audio/webm'],
+        'ogg': ['audio/ogg;codecs=opus', 'audio/ogg']
+      };
+
+      const candidates = mimeMap[format] || ['audio/webm'];
+      const mime = candidates.find(m => MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(m)) || '';
+
+      if (!mime) {
+        src.stop();
+        return reject(new Error('No supported MediaRecorder mime type for ' + format));
+      }
+
+      const recorder = new MediaRecorder(mediaDst.stream, { mimeType: mime });
+      const chunks = [];
+      recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+      recorder.onstop = () => {
+        const blob = new Blob(chunks, { type: mime });
+        const ext = mime.includes('ogg') ? 'ogg' : 'webm';
+        resolve({ blob, ext, mime });
+      };
+      recorder.onerror = e => reject(e.error || e);
+
+      src.onended = () => {
+        setTimeout(() => { if (recorder.state !== 'inactive') recorder.stop(); }, 100);
+      };
+      recorder.start();
+
+      setTimeout(() => {
+        if (recorder.state !== 'inactive') recorder.stop();
+      }, (buffer.duration * 1000) + 500);
+    });
+  }
+
+  function downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 100);
+  }
+
+  // Initial canvas sizing
+  resizeCanvas();
+})();
+</script>
+</body>
+</html>
