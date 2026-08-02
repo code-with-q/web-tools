@@ -310,8 +310,10 @@
   .btn-ghost:hover { background: var(--blue-50); color: var(--blue-700); }
   .btn svg { width: 16px; height: 16px; }
 
-  /* Upload zone */
+  /* Upload zone - Fixed to be full width block */
   .upload {
+    display: block;
+    width: 100%;
     border: 2px dashed var(--blue-100);
     border-radius: 16px;
     padding: 36px 20px;
@@ -416,13 +418,35 @@
     flex-wrap: wrap;
     gap: 12px;
   }
-  .palette-head .count {
-    font-size: 13px;
-    color: var(--ink-500);
-    font-weight: 500;
-  }
   .export-group { display: flex; gap: 8px; flex-wrap: wrap; }
 
+  /* Palette Count Controls */
+  .palette-controls {
+    display: inline-flex;
+    align-items: center;
+    background: var(--ink-50);
+    border-radius: 8px;
+    padding: 2px;
+    gap: 2px;
+  }
+  .btn-count {
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: transparent;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 700;
+    font-size: 16px;
+    color: var(--ink-700);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s, color 0.2s;
+  }
+  .btn-count:hover { background: var(--white); box-shadow: var(--shadow-sm); color: var(--blue-600); }
+  .btn-count:disabled { opacity: 0.3; cursor: not-allowed; }
+  
   .palette {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
@@ -449,11 +473,16 @@
   .swatch .label {
     padding: 12px 14px;
     color: white;
-    background: linear-gradient(180deg, transparent, rgba(0,0,0,0.35));
+    background: linear-gradient(180deg, transparent, rgba(0,0,0,0.45));
     display: flex;
     align-items: flex-end;
     justify-content: space-between;
     gap: 8px;
+  }
+  .swatch .color-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
   }
   .swatch .hex {
     font-family: "SF Mono", Menlo, Consolas, monospace;
@@ -462,11 +491,18 @@
     letter-spacing: 0.04em;
     text-shadow: 0 1px 2px rgba(0,0,0,0.3);
   }
+  .swatch .rgb {
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 11px;
+    opacity: 0.85;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+  }
   .swatch .copy-ic {
     opacity: 0.85;
     transition: opacity 0.2s, transform 0.2s;
+    flex-shrink: 0;
   }
-  .swatch:hover .copy-ic { opacity: 1; }
+  .swatch:hover .copy-ic { opacity: 1; transform: scale(1.1); }
   .swatch .copy-ic svg { width: 16px; height: 16px; }
 
   .empty {
@@ -516,8 +552,11 @@
     .tab { padding: 9px 14px; font-size: 12px; }
     .palette { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
     .swatch .hex { font-size: 12px; }
+    .swatch .rgb { font-size: 10px; }
     .harmony-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
     .btn { padding: 12px 16px; font-size: 13px; }
+    .palette-head { flex-direction: column; align-items: flex-start; }
+    .palette-controls { margin-left: 0; margin-top: 8px; }
   }
 </style>
 </head>
@@ -531,7 +570,7 @@
           <p>Build harmonious color palettes in seconds</p>
         </div>
       </div>
-      <span class="tag">v1.0 · August 2026</span>
+      <span class="tag">v1.1 · August 2026</span>
     </header>
 
     <!-- Input Card -->
@@ -620,9 +659,13 @@
       <div class="card-body">
         <div class="card-body-content">
           <div class="palette-head">
-            <div>
-              <h2 style="margin:0 0 4px"><span class="dot"></span> Palette</h2>
-              <div class="count" id="count">No colors yet</div>
+            <div style="display:flex; align-items:center; flex-wrap:wrap; gap:12px;">
+              <div class="palette-controls">
+                <button class="btn-count" id="decreaseCount" title="Decrease count">−</button>
+                <span id="countDisplay">5</span>
+                <button class="btn-count" id="increaseCount" title="Increase count">+</button>
+              </div>
+              <div class="count" id="count" style="font-size:13px; color:var(--ink-500); font-weight:500;">No colors yet</div>
             </div>
             <div class="export-group">
               <button class="btn btn-ghost" id="exportJSON">
@@ -707,69 +750,79 @@
     return luminance(rgb.r,rgb.g,rgb.b) > 0.55 ? '#0D1B2A' : '#FFFFFF';
   }
 
-  // ---------- Harmonies ----------
+  // ---------- Dynamic Harmony Generation ----------
+  function getHarmonyColors(h, s, l, harmonyId, count) {
+    const colors = [];
+    const safeCount = Math.max(3, Math.min(12, count));
+    
+    if (harmonyId === 'mono') {
+      for (let i = 0; i < safeCount; i++) {
+        colors.push({ h, s, l: clamp(l - 35 + (i * 70 / (safeCount - 1)), 10, 90) });
+      }
+    } else if (harmonyId === 'analogous') {
+      const spread = 45;
+      for (let i = 0; i < safeCount; i++) {
+        const offset = (i / (safeCount - 1)) * spread * 2 - spread;
+        colors.push({ h: (h + offset + 360) % 360, s, l });
+      }
+    } else if (harmonyId === 'complementary') {
+      const half = Math.ceil(safeCount / 2);
+      for (let i = 0; i < safeCount; i++) {
+        const isComp = i >= half;
+        const hue = isComp ? (h + 180) % 360 : h;
+        const idx = isComp ? i - half : i;
+        const maxIdx = isComp ? safeCount - half : half;
+        const light = clamp(l - 30 + (idx / (maxIdx - 1 || 1)) * 60, 10, 90);
+        colors.push({ h: hue, s, l: light });
+      }
+    } else if (harmonyId === 'split') {
+      const hues = [h, (h + 150) % 360, (h + 210) % 360];
+      for (let i = 0; i < safeCount; i++) {
+        const hue = hues[i % 3];
+        const light = clamp(l - 20 + (Math.floor(i / 3) * 20), 10, 90);
+        colors.push({ h: hue, s, l });
+      }
+    } else if (harmonyId === 'triadic') {
+      const hues = [h, (h + 120) % 360, (h + 240) % 360];
+      for (let i = 0; i < safeCount; i++) {
+        const hue = hues[i % 3];
+        const light = clamp(l - 20 + (Math.floor(i / 3) * 20), 10, 90);
+        colors.push({ h: hue, s, l });
+      }
+    } else if (harmonyId === 'tetradic') {
+      const hues = [h, (h + 90) % 360, (h + 180) % 360, (h + 270) % 360];
+      for (let i = 0; i < safeCount; i++) {
+        const hue = hues[i % 4];
+        const light = clamp(l - 20 + (Math.floor(i / 4) * 20), 10, 90);
+        colors.push({ h: hue, s, l });
+      }
+    } else if (harmonyId === 'shades') {
+      for (let i = 0; i < safeCount; i++) {
+        colors.push({ 
+          h, 
+          s: clamp(s - 10 + (i * 20 / (safeCount - 1)), 0, 100), 
+          l: clamp(l - 35 + (i * 70 / (safeCount - 1)), 10, 90) 
+        });
+      }
+    }
+    return colors;
+  }
+
   const HARMONIES = [
-    { id:'mono',    name:'Monochromatic', desc:'Tints & shades of one hue',
-      build:(h,s,l)=>[
-        {h,s,l:clamp(l-25,10,90)},
-        {h,s,l:clamp(l-12,10,90)},
-        {h,s,l},
-        {h,s,l:clamp(l+12,10,90)},
-        {h,s,l:clamp(l+25,10,90)}
-      ]},
-    { id:'analogous', name:'Analogous', desc:'Neighbors on the color wheel',
-      build:(h,s,l)=>[
-        {h:(h-30+360)%360,s,l},
-        {h:(h-15+360)%360,s,l},
-        {h,s,l},
-        {h:(h+15)%360,s,l},
-        {h:(h+30)%360,s,l}
-      ]},
-    { id:'complementary', name:'Complementary', desc:'Direct opposite',
-      build:(h,s,l)=>[
-        {h,s,l:clamp(l-10,10,90)},
-        {h,s,l},
-        {h:(h+180)%360,s,l:clamp(l-10,10,90)},
-        {h:(h+180)%360,s,l},
-        {h:(h+180)%360,s,l:clamp(l+10,10,90)}
-      ]},
-    { id:'split', name:'Split-Complementary', desc:'Two accents beside the opposite',
-      build:(h,s,l)=>[
-        {h,s,l},
-        {h:(h+150)%360,s,l},
-        {h:(h+180)%360,s,l:clamp(l-10,10,90)},
-        {h:(h+210)%360,s,l},
-        {h:(h+30)%360,s,l:clamp(l+5,10,90)}
-      ]},
-    { id:'triadic', name:'Triadic', desc:'Three evenly spaced hues',
-      build:(h,s,l)=>[
-        {h,s,l},
-        {h:(h+120)%360,s,l:clamp(l-5,10,90)},
-        {h:(h+240)%360,s,l},
-        {h:(h+120)%360,s,l:clamp(l+15,10,90)},
-        {h:(h+240)%360,s,l:clamp(l+15,10,90)}
-      ]},
-    { id:'tetradic', name:'Tetradic', desc:'Four balanced hues',
-      build:(h,s,l)=>[
-        {h,s,l},
-        {h:(h+90)%360,s,l},
-        {h:(h+180)%360,s,l},
-        {h:(h+270)%360,s,l}
-      ]},
-    { id:'shades', name:'Shades', desc:'Darkening variations',
-      build:(h,s,l)=>[
-        {h,s,l:clamp(l+20,10,92)},
-        {h,s,l:clamp(l+10,10,92)},
-        {h,s,l},
-        {h,s:clamp(s+10,0,100),l:clamp(l-15,8,92)},
-        {h,s:clamp(s+15,0,100),l:clamp(l-30,8,92)}
-      ]}
+    { id:'mono', name:'Monochromatic', desc:'Tints & shades of one hue' },
+    { id:'analogous', name:'Analogous', desc:'Neighbors on the color wheel' },
+    { id:'complementary', name:'Complementary', desc:'Direct opposite' },
+    { id:'split', name:'Split-Complementary', desc:'Two accents beside the opposite' },
+    { id:'triadic', name:'Triadic', desc:'Three evenly spaced hues' },
+    { id:'tetradic', name:'Tetradic', desc:'Four balanced hues' },
+    { id:'shades', name:'Shades', desc:'Darkening variations' }
   ];
 
   // ---------- State ----------
   let state = {
     baseHex: '2196F3',
     harmony: 'analogous',
+    paletteCount: 5,
     palette: [], // [{hex, rgb, hsl}]
     source: 'color' // 'color' | 'image'
   };
@@ -781,6 +834,7 @@
   const generateBtn = $('generateBtn');
   const paletteEl = $('palette');
   const countEl = $('count');
+  const countDisplay = $('countDisplay');
   const harmoniesEl = $('harmonies');
   const fileInput = $('file');
   const upload = $('upload');
@@ -843,7 +897,7 @@
     HARMONIES.forEach(h => {
       const baseRgb = hexToRgb(state.baseHex);
       const baseHsl = rgbToHsl(baseRgb.r, baseRgb.g, baseRgb.b);
-      const dots = h.build(baseHsl.h, baseHsl.s, baseHsl.l).slice(0,5).map(c=>{
+      const dots = getHarmonyColors(baseHsl.h, baseHsl.s, baseHsl.l, h.id, state.paletteCount).map(c=>{
         const rgb = hslToRgb(c.h,c.s,c.l);
         return `<span style="background:#${rgbToHex(rgb.r,rgb.g,rgb.b)}"></span>`;
       }).join('');
@@ -864,8 +918,7 @@
     const rgb = hexToRgb(state.baseHex);
     if (!rgb) return;
     const hsl = rgbToHsl(rgb.r, rgb.g, rgb.b);
-    const harm = HARMONIES.find(x=>x.id===state.harmony);
-    const list = harm.build(hsl.h, hsl.s, hsl.l);
+    const list = getHarmonyColors(hsl.h, hsl.s, hsl.l, state.harmony, state.paletteCount);
     state.palette = list.map(c => {
       const r2 = hslToRgb(c.h,c.s,c.l);
       return { hex: rgbToHex(r2.r,r2.g,r2.b), rgb:r2, hsl:c };
@@ -888,8 +941,6 @@
     e.preventDefault();
   });
   upload.addEventListener('dragleave', e => {
-    // Only remove drag class if we are actually leaving the upload zone,
-    // not just moving to a child element inside it.
     if (!e.currentTarget.contains(e.relatedTarget)) {
       upload.classList.remove('drag');
     }
@@ -928,7 +979,6 @@
     ctx.drawImage(img, 0, 0, w, h);
     const data = ctx.getImageData(0,0,w,h).data;
 
-    // Bucket colors (quantize to 32 levels per channel)
     const buckets = new Map();
     const Q = 32;
     for (let i=0;i<data.length;i+=4){
@@ -941,7 +991,6 @@
       buckets.set(key, (buckets.get(key)||0)+1);
     }
 
-    // Sort by frequency
     const ranked = [...buckets.entries()]
       .sort((a,b)=>b[1]-a[1])
       .slice(0, 60)
@@ -950,7 +999,6 @@
         return { r:Math.round(r*255/(Q-1)), g:Math.round(g*255/(Q-1)), b:Math.round(b*255/(Q-1)) };
       });
 
-    // Dedupe similar colors (by hue/sat/light distance)
     const picked = [];
     for (const c of ranked) {
       const hsl = rgbToHsl(c.r,c.g,c.b);
@@ -963,20 +1011,20 @@
         }
       }
       if (!tooClose) picked.push({ rgb:c, hsl });
-      if (picked.length >= 6) break;
+      if (picked.length >= state.paletteCount) break;
     }
-    // Fallback if image was too uniform
-    while (picked.length < 5 && ranked.length) {
-      const c = ranked[picked.length];
+    
+    while (picked.length < state.paletteCount && ranked.length) {
+      const c = ranked[picked.length % ranked.length];
       picked.push({ rgb:c, hsl: rgbToHsl(c.r,c.g,c.b) });
     }
 
-    state.palette = picked.slice(0,6).map(p => ({
+    state.palette = picked.slice(0, state.paletteCount).map(p => ({
       hex: rgbToHex(p.rgb.r,p.rgb.g,p.rgb.b),
       rgb: p.rgb,
       hsl: p.hsl
     }));
-    // Use most dominant as base for harmony preview
+    
     if (picked[0]) {
       state.baseHex = rgbToHex(picked[0].rgb.r, picked[0].rgb.g, picked[0].rgb.b);
       picker.value = '#' + state.baseHex;
@@ -985,6 +1033,24 @@
     }
     renderPalette();
   }
+
+  // ---------- Palette Count Controls ----------
+  function updatePaletteCount(delta) {
+    state.paletteCount = Math.max(3, Math.min(12, state.paletteCount + delta));
+    countDisplay.textContent = state.paletteCount;
+    $('decreaseCount').disabled = state.paletteCount <= 3;
+    $('increaseCount').disabled = state.paletteCount >= 12;
+    
+    if (state.source === 'image' && previewImg.src) {
+      extractDominant(previewImg);
+    } else {
+      buildFromBase();
+    }
+    renderHarmonies();
+  }
+
+  $('decreaseCount').addEventListener('click', () => updatePaletteCount(-1));
+  $('increaseCount').addEventListener('click', () => updatePaletteCount(1));
 
   // ---------- Render palette ----------
   function renderPalette(){
@@ -1006,8 +1072,11 @@
       const textCol = textColorFor(c.rgb);
       el.innerHTML = `
         <div class="label" style="color:${textCol}">
-          <span class="hex">#${c.hex}</span>
-          <span class="copy-ic" title="Copy hex">
+          <div class="color-info">
+            <span class="hex">#${c.hex}</span>
+            <span class="rgb">rgb(${Math.round(c.rgb.r)}, ${Math.round(c.rgb.g)}, ${Math.round(c.rgb.b)})</span>
+          </div>
+          <span class="copy-ic" title="Copy HEX">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
           </span>
         </div>`;
@@ -1087,13 +1156,11 @@
       card.classList.toggle('collapsed');
     };
     
-    // Clicking the button explicitly toggles
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       toggle();
     });
     
-    // Clicking the header (but not the button) also toggles for better UX
     header.addEventListener('click', (e) => {
       if (e.target === btn || btn.contains(e.target)) return;
       toggle();
