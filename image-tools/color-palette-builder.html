@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Palette Studio — Color Palette Builder</title>
+<style>
+  :root {
+    --blue-50: #e3f2fd;
+    --blue-100: #bbdefb;
+    --blue-200: #90caf9;
+    --blue-500: #2196f3;
+    --blue-600: #1e88e5;
+    --blue-700: #1976d2;
+    --blue-800: #1565c0;
+    --ink-900: #0d1b2a;
+    --ink-700: #2c3e50;
+    --ink-500: #546e7a;
+    --ink-300: #90a4ae;
+    --ink-100: #eceff1;
+    --ink-50: #f7f9fb;
+    --white: #ffffff;
+    --shadow-sm: 0 1px 3px rgba(13,27,42,0.06), 0 1px 2px rgba(13,27,42,0.04);
+    --shadow-md: 0 4px 12px rgba(13,27,42,0.08), 0 2px 4px rgba(13,27,42,0.04);
+    --shadow-lg: 0 12px 32px rgba(13,27,42,0.12), 0 4px 8px rgba(13,27,42,0.06);
+    --radius-sm: 8px;
+    --radius-md: 14px;
+    --radius-lg: 20px;
+    --ease: cubic-bezier(.2,.8,.2,1);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: linear-gradient(180deg, #f5f9ff 0%, #ffffff 40%);
+    color: var(--ink-900);
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.5;
+  }
+
+  .app {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 32px 24px 80px;
+  }
+
+  /* Header */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 28px;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .logo {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: conic-gradient(from 210deg, #2196f3, #1976d2, #0d47a1, #42a5f5, #2196f3);
+    box-shadow: var(--shadow-md);
+    position: relative;
+    overflow: hidden;
+  }
+  .logo::after {
+    content: "";
+    position: absolute;
+    inset: 8px;
+    background: white;
+    border-radius: 6px;
+    box-shadow: inset 0 0 0 2px var(--blue-500);
+  }
+  .brand h1 {
+    font-size: 22px;
+    font-weight: 700;
+    margin: 0;
+    letter-spacing: -0.02em;
+  }
+  .brand p {
+    margin: 0;
+    color: var(--ink-500);
+    font-size: 13px;
+  }
+  .tag {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    background: var(--blue-50);
+    color: var(--blue-700);
+    padding: 6px 10px;
+    border-radius: 999px;
+  }
+
+  /* Cards */
+  .card {
+    background: var(--white);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+    padding: 24px;
+    border: 1px solid rgba(13,27,42,0.04);
+  }
+  .card + .card { margin-top: 20px; }
+
+  .card h2 {
+    font-size: 15px;
+    font-weight: 700;
+    margin: 0 0 16px;
+    letter-spacing: -0.01em;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .card h2 .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--blue-500);
+    box-shadow: 0 0 0 4px rgba(33,150,243,0.15);
+  }
+
+  /* Tabs */
+  .tabs {
+    display: inline-flex;
+    background: var(--ink-50);
+    padding: 4px;
+    border-radius: 12px;
+    gap: 2px;
+    margin-bottom: 18px;
+  }
+  .tab {
+    border: none;
+    background: transparent;
+    padding: 10px 18px;
+    border-radius: 9px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink-500);
+    cursor: pointer;
+    transition: all 0.25s var(--ease);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .tab:hover { color: var(--ink-700); }
+  .tab.active {
+    background: var(--white);
+    color: var(--blue-700);
+    box-shadow: var(--shadow-sm);
+  }
+  .tab svg { width: 16px; height: 16px; }
+
+  /* Input panel */
+  .panel { display: none; animation: fade 0.3s var(--ease); }
+  .panel.active { display: block; }
+  @keyframes fade {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .color-row {
+    display: flex;
+    gap: 12px;
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+  .picker-wrap {
+    position: relative;
+    width: 72px;
+    height: 72px;
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: var(--shadow-sm), inset 0 0 0 1px rgba(13,27,42,0.08);
+    flex-shrink: 0;
+    cursor: pointer;
+    transition: transform 0.2s var(--ease), box-shadow 0.2s var(--ease);
+  }
+  .picker-wrap:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+  .picker-wrap input[type="color"] {
+    position: absolute;
+    inset: -8px;
+    width: calc(100% + 16px);
+    height: calc(100% + 16px);
+    border: none;
+    cursor: pointer;
+    background: transparent;
+  }
+
+  .hex-input {
+    flex: 1;
+    min-width: 140px;
+    display: flex;
+    align-items: center;
+    background: var(--ink-50);
+    border: 1px solid transparent;
+    border-radius: 14px;
+    padding: 0 16px;
+    transition: all 0.2s var(--ease);
+  }
+  .hex-input:focus-within {
+    background: var(--white);
+    border-color: var(--blue-200);
+    box-shadow: 0 0 0 4px rgba(33,150,243,0.12);
+  }
+  .hex-input span {
+    color: var(--ink-300);
+    font-weight: 600;
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    margin-right: 6px;
+  }
+  .hex-input input {
+    border: none;
+    background: transparent;
+    outline: none;
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--ink-900);
+    flex: 1;
+    padding: 18px 0;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .btn {
+    border: none;
+    padding: 14px 22px;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s var(--ease);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    letter-spacing: 0.01em;
+  }
+  .btn-primary {
+    background: var(--blue-600);
+    color: white;
+    box-shadow: 0 4px 12px rgba(30,136,229,0.35);
+  }
+  .btn-primary:hover {
+    background: var(--blue-700);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 18px rgba(30,136,229,0.45);
+  }
+  .btn-primary:active { transform: translateY(0); }
+  .btn-ghost {
+    background: var(--ink-50);
+    color: var(--ink-700);
+  }
+  .btn-ghost:hover { background: var(--blue-50); color: var(--blue-700); }
+  .btn svg { width: 16px; height: 16px; }
+
+  /* Upload zone */
+  .upload {
+    border: 2px dashed var(--blue-100);
+    border-radius: 16px;
+    padding: 36px 20px;
+    text-align: center;
+    background: linear-gradient(180deg, var(--blue-50), #ffffff);
+    cursor: pointer;
+    transition: all 0.25s var(--ease);
+    position: relative;
+  }
+  .upload:hover, .upload.drag {
+    border-color: var(--blue-500);
+    background: linear-gradient(180deg, #e3f2fd, #f5f9ff);
+    transform: translateY(-2px);
+  }
+  .upload input { display: none; }
+  .upload-icon {
+    width: 48px; height: 48px;
+    margin: 0 auto 12px;
+    border-radius: 14px;
+    background: var(--white);
+    box-shadow: var(--shadow-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--blue-600);
+  }
+  .upload-icon svg { width: 22px; height: 22px; }
+  .upload h3 { margin: 0 0 4px; font-size: 15px; font-weight: 700; }
+  .upload p { margin: 0; color: var(--ink-500); font-size: 13px; }
+
+  .preview {
+    margin-top: 16px;
+    display: none;
+    align-items: center;
+    gap: 14px;
+    padding: 12px;
+    background: var(--ink-50);
+    border-radius: 14px;
+  }
+  .preview.show { display: flex; }
+  .preview img {
+    width: 56px; height: 56px;
+    border-radius: 10px;
+    object-fit: cover;
+    box-shadow: var(--shadow-sm);
+  }
+  .preview .info { flex: 1; min-width: 0; }
+  .preview .name {
+    font-weight: 600;
+    font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .preview .meta { font-size: 12px; color: var(--ink-500); }
+
+  /* Harmony selector */
+  .harmony-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 10px;
+  }
+  .harmony {
+    border: 1px solid var(--ink-100);
+    background: var(--white);
+    border-radius: 12px;
+    padding: 12px;
+    cursor: pointer;
+    transition: all 0.2s var(--ease);
+    text-align: left;
+  }
+  .harmony:hover {
+    border-color: var(--blue-200);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-sm);
+  }
+  .harmony.active {
+    border-color: var(--blue-500);
+    background: var(--blue-50);
+    box-shadow: 0 0 0 3px rgba(33,150,243,0.12);
+  }
+  .harmony .h-name { font-weight: 700; font-size: 13px; color: var(--ink-900); }
+  .harmony .h-desc { font-size: 11px; color: var(--ink-500); margin-top: 2px; }
+  .harmony .h-dots {
+    display: flex;
+    gap: 4px;
+    margin-top: 10px;
+  }
+  .harmony .h-dots span {
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    border: 1px solid rgba(0,0,0,0.08);
+  }
+
+  /* Palette */
+  .palette-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .palette-head .count {
+    font-size: 13px;
+    color: var(--ink-500);
+    font-weight: 500;
+  }
+  .export-group { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  .palette {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 14px;
+  }
+  .swatch {
+    position: relative;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+    cursor: pointer;
+    transition: transform 0.25s var(--ease), box-shadow 0.25s var(--ease);
+    aspect-ratio: 1 / 1.15;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    background: #eee;
+  }
+  .swatch:hover {
+    transform: translateY(-4px) scale(1.02);
+    box-shadow: var(--shadow-lg);
+    z-index: 2;
+  }
+  .swatch .label {
+    padding: 12px 14px;
+    color: white;
+    background: linear-gradient(180deg, transparent, rgba(0,0,0,0.35));
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .swatch .hex {
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-weight: 700;
+    font-size: 14px;
+    letter-spacing: 0.04em;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+  }
+  .swatch .copy-ic {
+    opacity: 0.85;
+    transition: opacity 0.2s, transform 0.2s;
+  }
+  .swatch:hover .copy-ic { opacity: 1; }
+  .swatch .copy-ic svg { width: 16px; height: 16px; }
+
+  .empty {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 48px 20px;
+    color: var(--ink-500);
+    background: var(--ink-50);
+    border-radius: 16px;
+    border: 1px dashed var(--ink-100);
+  }
+  .empty svg { width: 32px; height: 32px; opacity: 0.4; margin-bottom: 8px; }
+  .empty p { margin: 4px 0 0; font-size: 13px; }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 28px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--ink-900);
+    color: white;
+    padding: 12px 20px;
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: 500;
+    box-shadow: var(--shadow-lg);
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.3s var(--ease);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  .toast svg { width: 16px; height: 16px; color: #4ade80; }
+
+  /* Responsive */
+  @media (max-width: 640px) {
+    .app { padding: 20px 16px 60px; }
+    .card { padding: 18px; border-radius: 16px; }
+    .brand h1 { font-size: 18px; }
+    .tab { padding: 9px 14px; font-size: 12px; }
+    .palette { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
+    .swatch .hex { font-size: 12px; }
+    .harmony-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+    .btn { padding: 12px 16px; font-size: 13px; }
+  }
+</style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div class="brand">
+        <div class="logo"></div>
+        <div>
+          <h1>Palette Studio</h1>
+          <p>Build harmonious color palettes in seconds</p>
+        </div>
+      </div>
+      <span class="tag">v1.0 · August 2026</span>
+    </header>
+
+    <!-- Input Card -->
+    <section class="card">
+      <h2><span class="dot"></span> Source</h2>
+      <div class="tabs" role="tablist">
+        <button class="tab active" data-tab="color">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="10.5" r="2.5"/><circle cx="8.5" cy="7.5" r="2.5"/><circle cx="6.5" cy="12.5" r="2.5"/><path d="M12 2a10 10 0 1 0 9.5 13.5c.3-1-.5-1.5-1.3-1.5H18a2 2 0 0 1-2-2 2 2 0 0 0-2-2h-2.5A2.5 2.5 0 0 1 12 5.5V2z"/></svg>
+          Color
+        </button>
+        <button class="tab" data-tab="image">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+          Image
+        </button>
+      </div>
+
+      <!-- Color panel -->
+      <div class="panel active" id="panel-color">
+        <div class="color-row">
+          <div class="picker-wrap">
+            <input type="color" id="picker" value="#2196f3" />
+          </div>
+          <div class="hex-input">
+            <span>#</span>
+            <input type="text" id="hex" maxlength="6" value="2196F3" placeholder="HEX" />
+          </div>
+          <button class="btn btn-primary" id="generateBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+            Generate Palette
+          </button>
+        </div>
+      </div>
+
+      <!-- Image panel -->
+      <div class="panel" id="panel-image">
+        <label class="upload" id="upload">
+          <input type="file" id="file" accept="image/*" />
+          <div class="upload-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          </div>
+          <h3>Drop an image or click to upload</h3>
+          <p>PNG, JPG, WEBP — we'll extract the dominant colors</p>
+        </label>
+        <div class="preview" id="preview">
+          <img id="previewImg" alt="" />
+          <div class="info">
+            <div class="name" id="previewName"></div>
+            <div class="meta" id="previewMeta"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Harmony Card -->
+    <section class="card">
+      <h2><span class="dot"></span> Harmony</h2>
+      <div class="harmony-grid" id="harmonies"></div>
+    </section>
+
+    <!-- Palette Card -->
+    <section class="card">
+      <div class="palette-head">
+        <div>
+          <h2 style="margin:0 0 4px"><span class="dot"></span> Palette</h2>
+          <div class="count" id="count">No colors yet</div>
+        </div>
+        <div class="export-group">
+          <button class="btn btn-ghost" id="exportJSON">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            Export JSON
+          </button>
+          <button class="btn btn-ghost" id="exportText">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            Export Text
+          </button>
+        </div>
+      </div>
+      <div class="palette" id="palette">
+        <div class="empty">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="10.5" r="2.5"/><circle cx="8.5" cy="7.5" r="2.5"/><circle cx="6.5" cy="12.5" r="2.5"/><path d="M12 2a10 10 0 1 0 9.5 13.5c.3-1-.5-1.5-1.3-1.5H18a2 2 0 0 1-2-2 2 2 0 0 0-2-2h-2.5A2.5 2.5 0 0 1 12 5.5V2z"/></svg>
+          <h3 style="margin:0;font-size:14px">Your palette will appear here</h3>
+          <p>Pick a color or upload an image to get started</p>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div class="toast" id="toast">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+    <span id="toastMsg">Copied!</span>
+  </div>
+
+<script>
+(() => {
+  // ---------- Color math ----------
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+  function hexToRgb(hex) {
+    hex = hex.replace('#','').trim();
+    if (hex.length === 3) hex = hex.split('').map(c=>c+c).join('');
+    if (!/^[0-9a-fA-F]{6}$/.test(hex)) return null;
+    const n = parseInt(hex, 16);
+    return { r: (n>>16)&255, g: (n>>8)&255, b: n&255 };
+  }
+  function rgbToHex(r,g,b){
+    const to = v => clamp(Math.round(v),0,255).toString(16).padStart(2,'0');
+    return (to(r)+to(g)+to(b)).toUpperCase();
+  }
+  function rgbToHsl(r,g,b){
+    r/=255; g/=255; b/=255;
+    const max=Math.max(r,g,b), min=Math.min(r,g,b);
+    let h,s,l=(max+min)/2;
+    if (max===min){ h=s=0; }
+    else {
+      const d=max-min;
+      s = l>0.5 ? d/(2-max-min) : d/(max+min);
+      switch(max){
+        case r: h=(g-b)/d+(g<b?6:0); break;
+        case g: h=(b-r)/d+2; break;
+        case b: h=(r-g)/d+4; break;
+      }
+      h*=60;
+    }
+    return { h, s:s*100, l:l*100 };
+  }
+  function hslToRgb(h,s,l){
+    h=((h%360)+360)%360; s/=100; l/=100;
+    const c=(1-Math.abs(2*l-1))*s;
+    const x=c*(1-Math.abs(((h/60)%2)-1));
+    const m=l-c/2;
+    let r,g,b;
+    if (h<60){r=c;g=x;b=0;}
+    else if (h<120){r=x;g=c;b=0;}
+    else if (h<180){r=0;g=c;b=x;}
+    else if (h<240){r=0;g=x;b=c;}
+    else if (h<300){r=x;g=0;b=c;}
+    else {r=c;g=0;b=x;}
+    return { r:(r+m)*255, g:(g+m)*255, b:(b+m)*255 };
+  }
+  function luminance(r,g,b){
+    const a=[r,g,b].map(v=>{v/=255;return v<=0.03928?v/12.92:Math.pow((v+0.055)/1.055,2.4);});
+    return 0.2126*a[0]+0.7152*a[1]+0.0722*a[2];
+  }
+  function textColorFor(rgb){
+    return luminance(rgb.r,rgb.g,rgb.b) > 0.55 ? '#0D1B2A' : '#FFFFFF';
+  }
+
+  // ---------- Harmonies ----------
+  const HARMONIES = [
+    { id:'mono',    name:'Monochromatic', desc:'Tints & shades of one hue',
+      build:(h,s,l)=>[
+        {h,s,l:clamp(l-25,10,90)},
+        {h,s,l:clamp(l-12,10,90)},
+        {h,s,l},
+        {h,s,l:clamp(l+12,10,90)},
+        {h,s,l:clamp(l+25,10,90)}
+      ]},
+    { id:'analogous', name:'Analogous', desc:'Neighbors on the color wheel',
+      build:(h,s,l)=>[
+        {h:(h-30+360)%360,s,l},
+        {h:(h-15+360)%360,s,l},
+        {h,s,l},
+        {h:(h+15)%360,s,l},
+        {h:(h+30)%360,s,l}
+      ]},
+    { id:'complementary', name:'Complementary', desc:'Direct opposite',
+      build:(h,s,l)=>[
+        {h,s,l:clamp(l-10,10,90)},
+        {h,s,l},
+        {h:(h+180)%360,s,l:clamp(l-10,10,90)},
+        {h:(h+180)%360,s,l},
+        {h:(h+180)%360,s,l:clamp(l+10,10,90)}
+      ]},
+    { id:'split', name:'Split-Complementary', desc:'Two accents beside the opposite',
+      build:(h,s,l)=>[
+        {h,s,l},
+        {h:(h+150)%360,s,l},
+        {h:(h+180)%360,s,l:clamp(l-10,10,90)},
+        {h:(h+210)%360,s,l},
+        {h:(h+30)%360,s,l:clamp(l+5,10,90)}
+      ]},
+    { id:'triadic', name:'Triadic', desc:'Three evenly spaced hues',
+      build:(h,s,l)=>[
+        {h,s,l},
+        {h:(h+120)%360,s,l:clamp(l-5,10,90)},
+        {h:(h+240)%360,s,l},
+        {h:(h+120)%360,s,l:clamp(l+15,10,90)},
+        {h:(h+240)%360,s,l:clamp(l+15,10,90)}
+      ]},
+    { id:'tetradic', name:'Tetradic', desc:'Four balanced hues',
+      build:(h,s,l)=>[
+        {h,s,l},
+        {h:(h+90)%360,s,l},
+        {h:(h+180)%360,s,l},
+        {h:(h+270)%360,s,l}
+      ]},
+    { id:'shades', name:'Shades', desc:'Darkening variations',
+      build:(h,s,l)=>[
+        {h,s,l:clamp(l+20,10,92)},
+        {h,s,l:clamp(l+10,10,92)},
+        {h,s,l},
+        {h,s:clamp(s+10,0,100),l:clamp(l-15,8,92)},
+        {h,s:clamp(s+15,0,100),l:clamp(l-30,8,92)}
+      ]}
+  ];
+
+  // ---------- State ----------
+  let state = {
+    baseHex: '2196F3',
+    harmony: 'analogous',
+    palette: [], // [{hex, rgb, hsl}]
+    source: 'color' // 'color' | 'image'
+  };
+
+  // ---------- DOM ----------
+  const $ = id => document.getElementById(id);
+  const picker = $('picker');
+  const hexInput = $('hex');
+  const generateBtn = $('generateBtn');
+  const paletteEl = $('palette');
+  const countEl = $('count');
+  const harmoniesEl = $('harmonies');
+  const fileInput = $('file');
+  const upload = $('upload');
+  const preview = $('preview');
+  const previewImg = $('previewImg');
+  const previewName = $('previewName');
+  const previewMeta = $('previewMeta');
+  const toast = $('toast');
+  const toastMsg = $('toastMsg');
+
+  // ---------- Tabs ----------
+  document.querySelectorAll('.tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
+      document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+      btn.classList.add('active');
+      const tab = btn.dataset.tab;
+      $('panel-'+tab).classList.add('active');
+      state.source = tab;
+    });
+  });
+
+  // ---------- Color input sync ----------
+  function setBaseHex(hex){
+    hex = hex.toUpperCase();
+    if (!/^[0-9A-F]{6}$/.test(hex)) return;
+    state.baseHex = hex;
+    picker.value = '#' + hex;
+    hexInput.value = hex;
+  }
+  picker.addEventListener('input', e => {
+    const v = e.target.value.replace('#','').toUpperCase();
+    state.baseHex = v;
+    hexInput.value = v;
+  });
+  hexInput.addEventListener('input', e => {
+    let v = e.target.value.replace(/[^0-9a-fA-F]/g,'').slice(0,6);
+    e.target.value = v.toUpperCase();
+    if (v.length === 6) {
+      state.baseHex = v.toUpperCase();
+      picker.value = '#' + v;
+    }
+  });
+  hexInput.addEventListener('blur', () => {
+    let v = hexInput.value;
+    if (v.length === 3 && /^[0-9a-fA-F]{3}$/.test(v)) {
+      v = v.split('').map(c=>c+c).join('');
+    }
+    if (/^[0-9a-fA-F]{6}$/.test(v)) setBaseHex(v);
+    else hexInput.value = state.baseHex;
+  });
+
+  generateBtn.addEventListener('click', () => {
+    buildFromBase();
+  });
+
+  // ---------- Harmonies UI ----------
+  function renderHarmonies(){
+    harmoniesEl.innerHTML = '';
+    HARMONIES.forEach(h => {
+      const baseRgb = hexToRgb(state.baseHex);
+      const baseHsl = rgbToHsl(baseRgb.r, baseRgb.g, baseRgb.b);
+      const dots = h.build(baseHsl.h, baseHsl.s, baseHsl.l).slice(0,5).map(c=>{
+        const rgb = hslToRgb(c.h,c.s,c.l);
+        return `<span style="background:#${rgbToHex(rgb.r,rgb.g,rgb.b)}"></span>`;
+      }).join('');
+      const el = document.createElement('button');
+      el.className = 'harmony' + (h.id===state.harmony?' active':'');
+      el.innerHTML = `<div class="h-name">${h.name}</div><div class="h-desc">${h.desc}</div><div class="h-dots">${dots}</div>`;
+      el.addEventListener('click', () => {
+        state.harmony = h.id;
+        renderHarmonies();
+        buildFromBase();
+      });
+      harmoniesEl.appendChild(el);
+    });
+  }
+
+  // ---------- Build palette from base color ----------
+  function buildFromBase(){
+    const rgb = hexToRgb(state.baseHex);
+    if (!rgb) return;
+    const hsl = rgbToHsl(rgb.r, rgb.g, rgb.b);
+    const harm = HARMONIES.find(x=>x.id===state.harmony);
+    const list = harm.build(hsl.h, hsl.s, hsl.l);
+    state.palette = list.map(c => {
+      const r2 = hslToRgb(c.h,c.s,c.l);
+      return { hex: rgbToHex(r2.r,r2.g,r2.b), rgb:r2, hsl:c };
+    });
+    renderPalette();
+  }
+
+  // ---------- Image extraction ----------
+  fileInput.addEventListener('change', e => {
+    const f = e.target.files[0];
+    if (f) handleImage(f);
+  });
+  ['dragenter','dragover'].forEach(ev => upload.addEventListener(ev, e => {
+    e.preventDefault(); upload.classList.add('drag');
+  }));
+  ['dragleave','drop'].forEach(ev => upload.addEventListener(ev, e => {
+    e.preventDefault(); upload.classList.remove('drag');
+  }));
+  upload.addEventListener('drop', e => {
+    const f = e.dataTransfer.files[0];
+    if (f && f.type.startsWith('image/')) handleImage(f);
+  });
+
+  function handleImage(file){
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const img = new Image();
+      img.onload = () => {
+        previewImg.src = ev.target.result;
+        previewName.textContent = file.name;
+        previewMeta.textContent = `${img.naturalWidth}×${img.naturalHeight} · ${(file.size/1024).toFixed(1)} KB`;
+        preview.classList.add('show');
+        extractDominant(img);
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function extractDominant(img){
+    const canvas = document.createElement('canvas');
+    const maxDim = 120;
+    const scale = Math.min(1, maxDim / Math.max(img.naturalWidth, img.naturalHeight));
+    const w = Math.max(1, Math.round(img.naturalWidth * scale));
+    const h = Math.max(1, Math.round(img.naturalHeight * scale));
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, w, h);
+    const data = ctx.getImageData(0,0,w,h).data;
+
+    // Bucket colors (quantize to 32 levels per channel)
+    const buckets = new Map();
+    const Q = 32;
+    for (let i=0;i<data.length;i+=4){
+      const a = data[i+3];
+      if (a < 125) continue;
+      const r = Math.round(data[i]/255*(Q-1));
+      const g = Math.round(data[i+1]/255*(Q-1));
+      const b = Math.round(data[i+2]/255*(Q-1));
+      const key = (r<<10)|(g<<5)|b;
+      buckets.set(key, (buckets.get(key)||0)+1);
+    }
+
+    // Sort by frequency
+    const ranked = [...buckets.entries()]
+      .sort((a,b)=>b[1]-a[1])
+      .slice(0, 60)
+      .map(([k])=>{
+        const b=k&31, g=(k>>5)&31, r=(k>>10)&31;
+        return { r:Math.round(r*255/(Q-1)), g:Math.round(g*255/(Q-1)), b:Math.round(b*255/(Q-1)) };
+      });
+
+    // Dedupe similar colors (by hue/sat/light distance)
+    const picked = [];
+    for (const c of ranked) {
+      const hsl = rgbToHsl(c.r,c.g,c.b);
+      // Skip very low saturation grays if we already have enough
+      let tooClose = false;
+      for (const p of picked) {
+        const d = Math.abs(p.hsl.h-hsl.h);
+        const dh = Math.min(d, 360-d);
+        if (dh < 18 && Math.abs(p.hsl.s-hsl.s) < 15 && Math.abs(p.hsl.l-hsl.l) < 15) {
+          tooClose = true; break;
+        }
+      }
+      if (!tooClose) picked.push({ rgb:c, hsl });
+      if (picked.length >= 6) break;
+    }
+    // Fallback if image was too uniform
+    while (picked.length < 5 && ranked.length) {
+      const c = ranked[picked.length];
+      picked.push({ rgb:c, hsl: rgbToHsl(c.r,c.g,c.b) });
+    }
+
+    state.palette = picked.slice(0,6).map(p => ({
+      hex: rgbToHex(p.rgb.r,p.rgb.g,p.rgb.b),
+      rgb: p.rgb,
+      hsl: p.hsl
+    }));
+    // Use most dominant as base for harmony preview
+    if (picked[0]) {
+      state.baseHex = rgbToHex(picked[0].rgb.r, picked[0].rgb.g, picked[0].rgb.b);
+      picker.value = '#' + state.baseHex;
+      hexInput.value = state.baseHex;
+      renderHarmonies();
+    }
+    renderPalette();
+  }
+
+  // ---------- Render palette ----------
+  function renderPalette(){
+    paletteEl.innerHTML = '';
+    if (!state.palette.length) {
+      paletteEl.innerHTML = `
+        <div class="empty">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="10.5" r="2.5"/><circle cx="8.5" cy="7.5" r="2.5"/><circle cx="6.5" cy="12.5" r="2.5"/><path d="M12 2a10 10 0 1 0 9.5 13.5c.3-1-.5-1.5-1.3-1.5H18a2 2 0 0 1-2-2 2 2 0 0 0-2-2h-2.5A2.5 2.5 0 0 1 12 5.5V2z"/></svg>
+          <h3 style="margin:0;font-size:14px">Your palette will appear here</h3>
+          <p>Pick a color or upload an image to get started</p>
+        </div>`;
+      countEl.textContent = 'No colors yet';
+      return;
+    }
+    state.palette.forEach((c, i) => {
+      const el = document.createElement('div');
+      el.className = 'swatch';
+      el.style.background = '#' + c.hex;
+      const textCol = textColorFor(c.rgb);
+      el.innerHTML = `
+        <div class="label" style="color:${textCol}">
+          <span class="hex">#${c.hex}</span>
+          <span class="copy-ic" title="Copy hex">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          </span>
+        </div>`;
+      el.addEventListener('click', () => copyToClipboard('#' + c.hex));
+      paletteEl.appendChild(el);
+    });
+    countEl.textContent = `${state.palette.length} color${state.palette.length>1?'s':''} · ${HARMONIES.find(h=>h.id===state.harmony).name}`;
+  }
+
+  // ---------- Copy ----------
+  function copyToClipboard(text){
+    const done = () => showToast(`Copied ${text}`);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done).catch(fallback);
+    } else fallback();
+    function fallback(){
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.style.position='fixed'; ta.style.opacity='0';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); done(); } catch(e){}
+      document.body.removeChild(ta);
+    }
+  }
+
+  let toastTimer;
+  function showToast(msg){
+    toastMsg.textContent = msg;
+    toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(()=>toast.classList.remove('show'), 1800);
+  }
+
+  // ---------- Export ----------
+  $('exportJSON').addEventListener('click', () => {
+    if (!state.palette.length) return showToast('Generate a palette first');
+    const data = {
+      generated: new Date().toISOString(),
+      harmony: state.harmony,
+      base: '#' + state.baseHex,
+      colors: state.palette.map(c => ({
+        hex: '#' + c.hex,
+        rgb: `rgb(${Math.round(c.rgb.r)}, ${Math.round(c.rgb.g)}, ${Math.round(c.rgb.b)})`,
+        hsl: `hsl(${Math.round(c.hsl.h)}, ${Math.round(c.hsl.s)}%, ${Math.round(c.hsl.l)}%)`
+      }))
+    };
+    download('palette.json', JSON.stringify(data, null, 2), 'application/json');
+    showToast('Exported palette.json');
+  });
+  $('exportText').addEventListener('click', () => {
+    if (!state.palette.length) return showToast('Generate a palette first');
+    const lines = [
+      `Palette — ${HARMONIES.find(h=>h.id===state.harmony).name}`,
+      `Base: #${state.baseHex}`,
+      `Generated: ${new Date().toLocaleString()}`,
+      '',
+      ...state.palette.map((c,i)=>`${i+1}. #${c.hex}  rgb(${Math.round(c.rgb.r)},${Math.round(c.rgb.g)},${Math.round(c.rgb.b)})  hsl(${Math.round(c.hsl.h)},${Math.round(c.hsl.s)}%,${Math.round(c.hsl.l)}%)`)
+    ].join('\n');
+    download('palette.txt', lines, 'text/plain');
+    showToast('Exported palette.txt');
+  });
+  function download(name, content, mime){
+    const blob = new Blob([content], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    setTimeout(()=>URL.revokeObjectURL(url), 500);
+  }
+
+  // ---------- Init ----------
+  setBaseHex('2196F3');
+  renderHarmonies();
+  buildFromBase();
+})();
+</script>
+</body>
+</html>
